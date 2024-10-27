@@ -15,6 +15,7 @@ struct SdlGlobal
 {
     bool done { false };
     unsigned int* framebuffer { nullptr };
+    unsigned int* tmp_buffer;
     SDL_Window* window { nullptr };
     SDL_Renderer* renderer { nullptr };
     SDL_Texture* texture { nullptr };
@@ -31,23 +32,14 @@ void putpixel(int x, int y, int color)
     }
     g.framebuffer[y * WINDOW_WIDTH + x] = color;
 }
-void init_snow()
+void init_gfx()
 {
-    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
-        g.framebuffer[i] = 0xff000000;
-
-    for (int i = 0; i < WINDOW_WIDTH; i++)
-    {
-        int p = (int)((sin((i + 3247) * 0.02) * 0.3 +
-                        sin((i + 2347) * 0.04) * 0.1 +
-                        sin((i + 4378) * 0.01) * 0.6) * 100 + (WINDOW_HEIGHT * 2 / 3));
-        int pos = p * WINDOW_WIDTH + i;
-        for (int j = p; j < WINDOW_HEIGHT; j++)
-        {
-            g.framebuffer[pos] = 0xff007f00;
-            pos += WINDOW_WIDTH;
-        }
-    }
+  g.tmp_buffer = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT];
+  for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
+  {
+    g.framebuffer[i] = 0xff000000;
+    g.tmp_buffer[i] = 0xff000000;
+  }
 }
 
 void newsnow()
@@ -91,22 +83,22 @@ void snowfall()
 // clang-format off
 const unsigned char sprite[] =
     {
-        0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,
-        0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
-        0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-        0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,
-        0,1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,
-        0,1,1,0,0,0,1,1,1,1,0,0,0,1,1,0,
-        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
-        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
-        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
-        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
-        0,1,1,0,0,0,1,1,1,1,0,0,0,1,1,0,
-        0,1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,
-        0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,
-        0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
-        0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
-        0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0
+        0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,
+        0,0,0,1,0,1,0,1,0,1,0,1,0,0,0,0,
+        0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,0,
+        0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,0,
+        0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,
+        0,1,0,0,0,0,1,1,1,1,0,0,0,1,0,0,
+        1,0,0,0,0,1,1,1,1,1,1,0,0,0,1,0,
+        0,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,
+        1,0,0,0,0,1,1,1,1,1,1,0,0,0,1,0,
+        0,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,
+        0,0,1,0,0,0,1,1,1,1,0,0,0,0,1,0,
+        0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,
+        0,0,1,0,1,0,0,0,0,0,0,1,0,1,0,0,
+        0,0,0,1,0,1,0,0,0,1,0,0,1,1,0,0,
+        0,0,0,0,1,0,1,0,1,0,1,0,1,0,0,0,
+        0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0
     };
 // clang-format on
 
@@ -148,10 +140,100 @@ bool update()
     return true;
 }
 
+unsigned int blend_avg(int source, int target)
+{
+    unsigned int sourcer = ((unsigned int)source >> 0) & 0xff;
+    unsigned int sourceg = ((unsigned int)source >> 8) & 0xff;
+    unsigned int sourceb = ((unsigned int)source >> 16) & 0xff;
+    unsigned int targetr = ((unsigned int)target >> 0) & 0xff;
+    unsigned int targetg = ((unsigned int)target >> 8) & 0xff;
+    unsigned int targetb = ((unsigned int)target >> 16) & 0xff;
+
+    targetr = (sourcer + targetr) / 2;
+    targetg = (sourceg + targetg) / 2;
+    targetb = (sourceb + targetb) / 2;
+
+    return (targetr << 0) |
+           (targetg << 8) |
+           (targetb << 16) |
+           0xff000000;
+}
+
+unsigned int blend_mul(int source, int target)
+{
+    unsigned int sourcer = ((unsigned int)source >> 0) & 0xff;
+    unsigned int sourceg = ((unsigned int)source >> 8) & 0xff;
+    unsigned int sourceb = ((unsigned int)source >> 16) & 0xff;
+    unsigned int targetr = ((unsigned int)target >> 0) & 0xff;
+    unsigned int targetg = ((unsigned int)target >> 8) & 0xff;
+    unsigned int targetb = ((unsigned int)target >> 16) & 0xff;
+
+    targetr = (sourcer * targetr) >> 8;
+    targetg = (sourceg * targetg) >> 8;
+    targetb = (sourceb * targetb) >> 8;
+
+    return (targetr << 0) |
+           (targetg << 8) |
+           (targetb << 16) |
+           0xff000000;
+}
+
+unsigned int blend_add(int source, int target)
+{
+    unsigned int sourcer = ((unsigned int)source >> 0) & 0xff;
+    unsigned int sourceg = ((unsigned int)source >> 8) & 0xff;
+    unsigned int sourceb = ((unsigned int)source >> 16) & 0xff;
+    unsigned int targetr = ((unsigned int)target >> 0) & 0xff;
+    unsigned int targetg = ((unsigned int)target >> 8) & 0xff;
+    unsigned int targetb = ((unsigned int)target >> 16) & 0xff;
+
+    targetr += sourcer;
+    targetg += sourceg;
+    targetb += sourceb;
+
+    if (targetr > 0xff) targetr = 0xff;
+    if (targetg > 0xff) targetg = 0xff;
+    if (targetb > 0xff) targetb = 0xff;
+
+    return (targetr << 0) |
+           (targetg << 8) |
+           (targetb << 16) |
+           0xff000000;
+}
+
+void scaleblit()
+{
+    constexpr double zoom = 0.99;
+    constexpr double expand = (1.0 - zoom) * 0.5;
+    int yofs = 0;
+    for (int i = 0; i < WINDOW_HEIGHT; i++)
+    {
+        for (int j = 0; j < WINDOW_WIDTH; j++)
+        {
+            int c =
+                (int)((i * zoom) + (WINDOW_HEIGHT * expand)) * WINDOW_WIDTH +
+                (int)((j * zoom) + (WINDOW_WIDTH * expand));
+            g.framebuffer[yofs + j] =
+                blend_avg(g.framebuffer[yofs + j], g.tmp_buffer[c]);
+        }
+        yofs += WINDOW_WIDTH;
+    }
+}
 void render(Uint64 aTicks)
 {
-    newsnow();
-    snowfall();
+    for (int i = 0; i < 128; i++)
+    {
+        int d = (int)aTicks + i * 4;
+        drawsprite((int)(WINDOW_WIDTH / 2 + sin(d * 0.0034) * sin(d * 0.0134) * (WINDOW_WIDTH / 2 - 20)),
+                   (int)(WINDOW_HEIGHT / 2 + sin(d * 0.0033) * sin(d * 0.0234) * (WINDOW_HEIGHT / 2 - 20)),
+                   ((int)(sin((aTicks * 0.2 + i) * 0.234897) * 127 + 128) << 16) |
+                       ((int)(sin((aTicks * 0.2 + i) * 0.123489) * 127 + 128) << 8) |
+                       ((int)(sin((aTicks * 0.2 + i) * 0.312348) * 127 + 128) << 0));
+    }
+
+    memcpy(g.tmp_buffer, g.framebuffer, sizeof(int) * WINDOW_WIDTH * WINDOW_HEIGHT);
+
+    scaleblit();
 }
 
 void loop()
@@ -169,7 +251,7 @@ void loop()
     }
 }
 
-bool init()
+bool init_sdl()
 {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
         return false;
@@ -199,10 +281,10 @@ void destroy()
 
 int main(int argc, char** argv)
 {
-    if (!init())
+    if (!init_sdl())
         return -1;
 
-    init_snow();
+    init_gfx();
 
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(loop, 0, 1);
