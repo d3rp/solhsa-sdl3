@@ -2,6 +2,8 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "stopwatch.hpp"
+
 #ifdef __EMSCRIPTEN__
 #    include <emscripten/emscripten.h>
 #endif
@@ -12,7 +14,7 @@
 struct SdlGlobal
 {
     bool done { false };
-    int* framebuffer { nullptr };
+    unsigned int* framebuffer { nullptr };
     SDL_Window* window { nullptr };
     SDL_Renderer* renderer { nullptr };
     SDL_Texture* texture { nullptr };
@@ -29,7 +31,63 @@ void putpixel(int x, int y, int color)
     }
     g.framebuffer[y * WINDOW_WIDTH + x] = color;
 }
+void init_snow()
+{
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
+        g.framebuffer[i] = 0xff000000;
 
+    for (int i = 0; i < WINDOW_WIDTH; i++)
+    {
+        int p = (int)((sin((i + 3247) * 0.02) * 0.3 +
+                        sin((i + 2347) * 0.04) * 0.1 +
+                        sin((i + 4378) * 0.01) * 0.6) * 100 + (WINDOW_HEIGHT * 2 / 3));
+        int pos = p * WINDOW_WIDTH + i;
+        for (int j = p; j < WINDOW_HEIGHT; j++)
+        {
+            g.framebuffer[pos] = 0xff007f00;
+            pos += WINDOW_WIDTH;
+        }
+    }
+}
+
+void newsnow()
+{
+    for (int i = 0; i < 8; i++)
+        g.framebuffer[rand() % (WINDOW_WIDTH - 2) + 1] = 0xffffffff;
+}
+
+void snowfall()
+{
+    STOPWATCH("snowfall");
+    for (int j = WINDOW_HEIGHT - 2; j >= 0; j--)
+    {
+        int ypos = j * WINDOW_WIDTH;
+        for (int i = 1; i < WINDOW_WIDTH - 1; i++)
+        {
+            constexpr int white_pxl = (int) 0xffffffff;
+            if (g.framebuffer[ypos + i] < white_pxl)
+                continue;
+
+            if (g.framebuffer[ypos + i + WINDOW_WIDTH] == 0xff000000)
+            {
+                g.framebuffer[ypos + i + WINDOW_WIDTH] = 0xffffffff;
+                g.framebuffer[ypos + i] = 0xff000000;
+            }
+            else
+                if (g.framebuffer[ypos + i + WINDOW_WIDTH - 1] == 0xff000000)
+            {
+                g.framebuffer[ypos + i + WINDOW_WIDTH - 1] = 0xffffffff;
+                g.framebuffer[ypos + i] = 0xff000000;
+            }
+            else
+                if (g.framebuffer[ypos + i + WINDOW_WIDTH + 1] == 0xff000000)
+            {
+                g.framebuffer[ypos + i + WINDOW_WIDTH + 1] = 0xffffffff;
+                g.framebuffer[ypos + i] = 0xff000000;
+            }
+        }
+    }
+}
 // clang-format off
 const unsigned char sprite[] =
     {
@@ -92,25 +150,8 @@ bool update()
 
 void render(Uint64 aTicks)
 {
-    for (int i = 0, c = 0; i < WINDOW_HEIGHT; i++)
-    {
-        for (int j = 0; j < WINDOW_WIDTH; j++, c++)
-        {
-            g.framebuffer[c] = (int) (sin(c) + (i * j) - (j * j) + aTicks) / (i + 1) | 0xff403020;
-        }
-    }
-    for (int i = 0; i < 64; i++)
-    {
-        const int j = 2 * i;
-        // clang-format off
-        drawsprite((int) ((WINDOW_WIDTH / 2) + cos((aTicks/4 + (i+64) * 10) * 0.0002459734) * sin((aTicks + (i+64) * 10) * 0.0003459734) * (WINDOW_WIDTH / 2 - 16)),
-                   (int) ((WINDOW_HEIGHT / 2) + sin((aTicks + (i+64) * 10) * 0.0002345973) * sin((aTicks + (i+64) * 10) * 0.003345973) * (WINDOW_HEIGHT / 2 - 16)),
-                   ((int) (sin((aTicks * 0.2 + j) * 0.234897) * 127 + 128) << 16)
-                       | ((int) (sin((aTicks * 0.2 + j) * 0.123489) * 127 + 128) << 8)
-                       | ((int) (sin((aTicks * 0.2 + j) * 0.312348) * 127 + 128) << 0)
-                       | 0xff000000);
-        // clang-format on
-    }
+    newsnow();
+    snowfall();
 }
 
 void loop()
@@ -133,7 +174,7 @@ bool init()
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
         return false;
 
-    g.framebuffer = new int[WINDOW_WIDTH * WINDOW_HEIGHT];
+    g.framebuffer = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT];
     g.window = SDL_CreateWindow("SDL3 window", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
     g.renderer = SDL_CreateRenderer(g.window, nullptr);
     g.texture = SDL_CreateTexture(g.renderer,
@@ -160,6 +201,8 @@ int main(int argc, char** argv)
 {
     if (!init())
         return -1;
+
+    init_snow();
 
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(loop, 0, 1);
