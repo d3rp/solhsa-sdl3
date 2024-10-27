@@ -11,6 +11,9 @@
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_main.h"
 
+#define TREECOUNT 32
+float gTreeCoord[TREECOUNT * 2];
+
 struct SdlGlobal
 {
     bool done { false };
@@ -34,12 +37,15 @@ void putpixel(int x, int y, int color)
 }
 void init_gfx()
 {
-  g.tmp_buffer = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT];
-  for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
-  {
-    g.framebuffer[i] = 0xff000000;
-    g.tmp_buffer[i] = 0xff000000;
-  }
+    srand(0x7aa7);
+    int i;
+    for (i = 0; i < TREECOUNT; i++)
+    {
+        int x = rand();
+        int y = rand();
+        gTreeCoord[i * 2 + 0] = ((x % 10000) - 5000) / 1000.0f;
+        gTreeCoord[i * 2 + 1] = ((y % 10000) - 5000) / 1000.0f;
+    }
 }
 
 void newsnow()
@@ -219,21 +225,74 @@ void scaleblit()
         yofs += WINDOW_WIDTH;
     }
 }
+void drawcircle(int x, int y, int r, int c)
+{
+    for (int i = 0; i < 2 * r; i++)
+    {
+        // vertical clipping: (top and bottom)
+        if ((y - r + i) >= 0 && (y - r + i) < WINDOW_HEIGHT)
+        {
+            int len = (int)(sqrt(r * r - (r - i) * (r - i)) * 2);
+            int xofs = x - len / 2;
+
+            // left border
+            if (xofs < 0)
+            {
+                len += xofs;
+                xofs = 0;
+            }
+
+            // right border
+            if (xofs + len >= WINDOW_WIDTH)
+            {
+                len -= (xofs + len) - WINDOW_WIDTH;
+            }
+            int ofs = (y - r + i) * WINDOW_WIDTH + xofs;
+
+            // note that len may be 0 at this point,
+            // and no pixels get drawn!
+            for (int j = 0; j < len; j++)
+                g.framebuffer[ofs + j] = c;
+        }
+    }
+}
+
 void render(Uint64 aTicks)
 {
-    for (int i = 0; i < 128; i++)
+    // Clear the screen with a green color
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
+        g.framebuffer[i] = 0xff005f00;
+
+    float pos_x = (float)sin(aTicks * 0.00037234) * 2;
+    float pos_y = (float)cos(aTicks * 0.00057234) * 2;
+    float shadow_x = (float)sin(aTicks/10 * 0.0002934872) * 16;
+    float shadow_y = (float)cos(aTicks/10 * 0.0001813431) * 16;
+
+    for (int j = 0; j < TREECOUNT; j++)
     {
-        int d = (int)aTicks + i * 4;
-        drawsprite((int)(WINDOW_WIDTH / 2 + sin(d * 0.0034) * sin(d * 0.0134) * (WINDOW_WIDTH / 2 - 20)),
-                   (int)(WINDOW_HEIGHT / 2 + sin(d * 0.0033) * sin(d * 0.0234) * (WINDOW_HEIGHT / 2 - 20)),
-                   ((int)(sin((aTicks * 0.2 + i) * 0.234897) * 127 + 128) << 16) |
-                       ((int)(sin((aTicks * 0.2 + i) * 0.123489) * 127 + 128) << 8) |
-                       ((int)(sin((aTicks * 0.2 + i) * 0.312348) * 127 + 128) << 0));
+        float x = gTreeCoord[j * 2 + 0] + pos_x;
+        float y = gTreeCoord[j * 2 + 1] + pos_y;
+
+        for (int i = 0; i < 8; i++)
+        {
+            drawcircle((int)(x * 200 + WINDOW_WIDTH / 2 + (i + 1) * shadow_x),
+                       (int)(y * 200 + WINDOW_HEIGHT / 2 + (i + 1) * shadow_y),
+                       (10 - i) * 5,
+                       0xff1f4f1f);
+        }
     }
-
-    memcpy(g.tmp_buffer, g.framebuffer, sizeof(int) * WINDOW_WIDTH * WINDOW_HEIGHT);
-
-    scaleblit();
+    for (int i = 0; i < 8; i++)
+    {
+        for (int j = 0; j < TREECOUNT; j++)
+        {
+            float x = gTreeCoord[j * 2 + 0] + pos_x;
+            float y = gTreeCoord[j * 2 + 1] + pos_y;
+            drawcircle((int)(x * (200 + i * 4) + WINDOW_WIDTH / 2),
+                       (int)(y * (200 + i * 4) + WINDOW_HEIGHT / 2),
+                       (9 - i) * 5,
+                       (i * 0x030906 + 0x1f671f) | 0xff000000);
+        }
+    }
 }
 
 void loop()
