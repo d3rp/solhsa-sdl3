@@ -2,6 +2,9 @@
 #include <cmath>
 #include <cstdlib>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../deps/stb_image.h"
+
 #include "stopwatch.hpp"
 
 #ifdef __EMSCRIPTEN__
@@ -13,11 +16,16 @@
 
 #define TREECOUNT 32
 float gTreeCoord[TREECOUNT * 2];
-
+// Look-up table
+unsigned short *gLut;
+// Texture
+int *gTexture;
+// Distance mask
+unsigned int *gMask;
 struct SdlGlobal
 {
     bool done { false };
-    unsigned int* framebuffer { nullptr };
+    int* framebuffer { nullptr };
     unsigned int* tmp_buffer;
     SDL_Window* window { nullptr };
     SDL_Renderer* renderer { nullptr };
@@ -37,14 +45,31 @@ void putpixel(int x, int y, int color)
 }
 void init_gfx()
 {
-    srand(0x7aa7);
-    int i;
-    for (i = 0; i < TREECOUNT; i++)
+    int x,y,n;
+    gTexture = (int*)stbi_load("../resources/tunneltexture.png", &x, &y, &n, 4);
+    gLut = new unsigned short[WINDOW_WIDTH * WINDOW_HEIGHT * 4];
+    gMask = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT * 4];
+
+    int i,j;
+    for (i = 0; i < WINDOW_HEIGHT * 2; i++)
     {
-        int x = rand();
-        int y = rand();
-        gTreeCoord[i * 2 + 0] = ((x % 10000) - 5000) / 1000.0f;
-        gTreeCoord[i * 2 + 1] = ((y % 10000) - 5000) / 1000.0f;
+        for (j = 0; j < WINDOW_WIDTH * 2; j++)
+        {
+            int xdist = j - (WINDOW_WIDTH);
+            int ydist = i - (WINDOW_HEIGHT);
+
+            int distance = (int)sqrt((float)(xdist * xdist + ydist * ydist));
+            if (distance > 0)
+                distance = (64 * 256 / distance) & 0xff;
+
+            int d = distance;
+            if (d > 255) d = 255;
+            gMask[i * WINDOW_WIDTH * 2 + j] = d * 0x010101;
+
+            int angle = (int)(((atan2((float)xdist, (float)ydist) / M_PI) + 1.0f) * 128);
+
+            gLut[i * WINDOW_WIDTH * 2 + j] = (distance << 8) + angle;
+        }
     }
 }
 
@@ -259,38 +284,20 @@ void drawcircle(int x, int y, int r, int c)
 
 void render(Uint64 aTicks)
 {
-    // Clear the screen with a green color
-    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
-        g.framebuffer[i] = 0xff005f00;
-
-    float pos_x = (float)sin(aTicks * 0.00037234) * 2;
-    float pos_y = (float)cos(aTicks * 0.00057234) * 2;
-    float shadow_x = (float)sin(aTicks/10 * 0.0002934872) * 16;
-    float shadow_y = (float)cos(aTicks/10 * 0.0001813431) * 16;
-
-    for (int j = 0; j < TREECOUNT; j++)
+    int posx = (int)((sin(aTicks * 0.000645234) + 1) * WINDOW_WIDTH / 2);
+    int posy = (int)((sin(aTicks * 0.000445234) + 1) * WINDOW_HEIGHT / 2);
+    for (int i = 0; i < WINDOW_HEIGHT; i++)
     {
-        float x = gTreeCoord[j * 2 + 0] + pos_x;
-        float y = gTreeCoord[j * 2 + 1] + pos_y;
+        for (int j = 0; j < WINDOW_WIDTH; j++)
+        {
+            int lut = gLut[(i + posy) * WINDOW_WIDTH * 2 + j + posx];
+            int mask = gMask[(i + posy) * WINDOW_WIDTH * 2 + j + posx];
 
-        for (int i = 0; i < 8; i++)
-        {
-            drawcircle((int)(x * 200 + WINDOW_WIDTH / 2 + (i + 1) * shadow_x),
-                       (int)(y * 200 + WINDOW_HEIGHT / 2 + (i + 1) * shadow_y),
-                       (10 - i) * 5,
-                       0xff1f4f1f);
-        }
-    }
-    for (int i = 0; i < 8; i++)
-    {
-        for (int j = 0; j < TREECOUNT; j++)
-        {
-            float x = gTreeCoord[j * 2 + 0] + pos_x;
-            float y = gTreeCoord[j * 2 + 1] + pos_y;
-            drawcircle((int)(x * (200 + i * 4) + WINDOW_WIDTH / 2),
-                       (int)(y * (200 + i * 4) + WINDOW_HEIGHT / 2),
-                       (9 - i) * 5,
-                       (i * 0x030906 + 0x1f671f) | 0xff000000);
+            g.framebuffer[j + i * WINDOW_WIDTH] =
+                blend_mul(
+                    gTexture[((lut + aTicks / 32) & 0xff) +
+                             (((lut >> 8) + aTicks / 8) & 0xff) * 256],
+                    mask);
         }
     }
 }
@@ -315,7 +322,7 @@ bool init_sdl()
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
         return false;
 
-    g.framebuffer = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT];
+    g.framebuffer = new int[WINDOW_WIDTH * WINDOW_HEIGHT];
     g.window = SDL_CreateWindow("SDL3 window", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
     g.renderer = SDL_CreateRenderer(g.window, nullptr);
     g.texture = SDL_CreateTexture(g.renderer,
