@@ -29,6 +29,42 @@ void putpixel(int x, int y, int color)
     }
     g.framebuffer[y * WINDOW_WIDTH + x] = color;
 }
+
+// clang-format off
+const unsigned char sprite[] =
+    {
+        0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,
+        0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
+        0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+        0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,
+        0,1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,
+        0,1,1,0,0,0,1,1,1,1,0,0,0,1,1,0,
+        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
+        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
+        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
+        1,1,0,0,0,1,1,1,1,1,1,0,0,0,1,1,
+        0,1,1,0,0,0,1,1,1,1,0,0,0,1,1,0,
+        0,1,1,1,0,0,0,0,0,0,0,0,1,1,1,0,
+        0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,
+        0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+        0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
+        0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0
+    };
+// clang-format on
+
+void drawsprite(int x, int y, unsigned int color)
+{
+    int i, j, c, yofs;
+    yofs = y * WINDOW_WIDTH + x;
+    for (i = 0, c = 0; i < 16; i++)
+    {
+        for (j = 0; j < 16; j++, c++)
+            if (sprite[c])
+                g.framebuffer[yofs + j] = color;
+
+        yofs += WINDOW_WIDTH;
+    }
+}
 bool update()
 {
     SDL_Event e;
@@ -63,22 +99,18 @@ void render(Uint64 aTicks)
             g.framebuffer[c] = (int) (sin(c) + (i * j) - (j * j) + aTicks) / (i + 1) | 0xff403020;
         }
     }
-    auto ticks_sin = sin(aTicks / 100);
-    auto ticks_cos = cos(aTicks / 50);
-    auto ticks_mod = (int) ((aTicks/100) % 10);
-    const int w = 30;
-    for (int i = 0; i < w; i++)
-        for (int j = 0; j < w; j++)
-        {
-            const auto z =  w/2;
-            const auto x = i - z;
-            const auto y = j - z;
-            if (x*x + y*y > z*z)
-                continue;
-            putpixel(WINDOW_WIDTH / 2 + ticks_sin * WINDOW_WIDTH / (13 - ticks_mod) + j,
-                     WINDOW_HEIGHT / 2 + ticks_cos * WINDOW_HEIGHT / (12 - ticks_mod) + i,
-                     ticks_mod*0x00100010 | 0xff000000);
-        }
+    for (int i = 0; i < 64; i++)
+    {
+        const int j = 2 * i;
+        // clang-format off
+        drawsprite((int) ((WINDOW_WIDTH / 2) + cos((aTicks/4 + (i+64) * 10) * 0.0002459734) * sin((aTicks + (i+64) * 10) * 0.0003459734) * (WINDOW_WIDTH / 2 - 16)),
+                   (int) ((WINDOW_HEIGHT / 2) + sin((aTicks + (i+64) * 10) * 0.0002345973) * sin((aTicks + (i+64) * 10) * 0.003345973) * (WINDOW_HEIGHT / 2 - 16)),
+                   ((int) (sin((aTicks * 0.2 + j) * 0.234897) * 127 + 128) << 16)
+                       | ((int) (sin((aTicks * 0.2 + j) * 0.123489) * 127 + 128) << 8)
+                       | ((int) (sin((aTicks * 0.2 + j) * 0.312348) * 127 + 128) << 0)
+                       | 0xff000000);
+        // clang-format on
+    }
 }
 
 void loop()
