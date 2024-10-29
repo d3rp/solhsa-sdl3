@@ -17,11 +17,11 @@
 #define TREECOUNT 32
 float gTreeCoord[TREECOUNT * 2];
 // Look-up table
-unsigned short *gLut;
+unsigned short* gLut;
 // Texture
-int *gTexture;
+int* gTexture;
 // Distance mask
-unsigned int *gMask;
+unsigned int* gMask;
 struct SdlGlobal
 {
     bool done { false };
@@ -45,12 +45,12 @@ void putpixel(int x, int y, int color)
 }
 void init_gfx()
 {
-    int x,y,n;
-    gTexture = (int*)stbi_load("../resources/tunneltexture.png", &x, &y, &n, 4);
+    int x, y, n;
+    gTexture = (int*) stbi_load("../resources/tunneltexture.png", &x, &y, &n, 4);
     gLut = new unsigned short[WINDOW_WIDTH * WINDOW_HEIGHT * 4];
     gMask = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT * 4];
 
-    int i,j;
+    int i, j;
     for (i = 0; i < WINDOW_HEIGHT * 2; i++)
     {
         for (j = 0; j < WINDOW_WIDTH * 2; j++)
@@ -58,29 +58,30 @@ void init_gfx()
             int xdist = j - (WINDOW_WIDTH);
             int ydist = i - (WINDOW_HEIGHT);
 
-#define DistanceShape 2
+#define DistanceShape 1
 #define DistanceFlower false
 
-#if DistanceShape == 1 // circle
-            int distance = (int)sqrt((float)(xdist * xdist + ydist * ydist));
-#elif DistanceShape == 2 // square
+#if DistanceShape == 1  // circle
+            int distance = (int) sqrt((float) (xdist * xdist + ydist * ydist));
+#elif DistanceShape == 2  // square
             int distance = (abs(xdist) > abs(ydist)) ? abs(xdist) : abs(ydist);
-#elif DistanceShape == 3 // diamond
+#elif DistanceShape == 3  // diamond
             int distance = (abs(xdist) + abs(ydist)) / 2;
 #endif
 
 #if DistanceFlower
-            distance += (int)(sin(atan2((float)xdist, (float)ydist) * 5) * 8);
+            distance += (int) (sin(atan2((float) xdist, (float) ydist) * 5) * 8);
 #endif
 
             if (distance > 0)
                 distance = (64 * 256 / distance) & 0xff;
 
             int d = distance;
-            if (d > 255) d = 255;
+            if (d > 255)
+                d = 255;
             gMask[i * WINDOW_WIDTH * 2 + j] = d * 0x010101;
 
-            int angle = (int)(((atan2((float)xdist, (float)ydist) / M_PI) + 1.0f) * 128);
+            int angle = (int) (((atan2((float) xdist, (float) ydist) / M_PI) + 1.0f) * 128);
 
             gLut[i * WINDOW_WIDTH * 2 + j] = (distance << 8) + angle;
         }
@@ -110,14 +111,12 @@ void snowfall()
                 g.framebuffer[ypos + i + WINDOW_WIDTH] = 0xffffffff;
                 g.framebuffer[ypos + i] = 0xff000000;
             }
-            else
-                if (g.framebuffer[ypos + i + WINDOW_WIDTH - 1] == 0xff000000)
+            else if (g.framebuffer[ypos + i + WINDOW_WIDTH - 1] == 0xff000000)
             {
                 g.framebuffer[ypos + i + WINDOW_WIDTH - 1] = 0xffffffff;
                 g.framebuffer[ypos + i] = 0xff000000;
             }
-            else
-                if (g.framebuffer[ypos + i + WINDOW_WIDTH + 1] == 0xff000000)
+            else if (g.framebuffer[ypos + i + WINDOW_WIDTH + 1] == 0xff000000)
             {
                 g.framebuffer[ypos + i + WINDOW_WIDTH + 1] = 0xffffffff;
                 g.framebuffer[ypos + i] = 0xff000000;
@@ -187,63 +186,57 @@ bool update()
 
 unsigned int blend_avg(int source, int target)
 {
-    unsigned int sourcer = ((unsigned int)source >> 0) & 0xff;
-    unsigned int sourceg = ((unsigned int)source >> 8) & 0xff;
-    unsigned int sourceb = ((unsigned int)source >> 16) & 0xff;
-    unsigned int targetr = ((unsigned int)target >> 0) & 0xff;
-    unsigned int targetg = ((unsigned int)target >> 8) & 0xff;
-    unsigned int targetb = ((unsigned int)target >> 16) & 0xff;
+    unsigned int sourcer = ((unsigned int) source >> 0) & 0xff;
+    unsigned int sourceg = ((unsigned int) source >> 8) & 0xff;
+    unsigned int sourceb = ((unsigned int) source >> 16) & 0xff;
+    unsigned int targetr = ((unsigned int) target >> 0) & 0xff;
+    unsigned int targetg = ((unsigned int) target >> 8) & 0xff;
+    unsigned int targetb = ((unsigned int) target >> 16) & 0xff;
 
     targetr = (sourcer + targetr) / 2;
     targetg = (sourceg + targetg) / 2;
     targetb = (sourceb + targetb) / 2;
 
-    return (targetr << 0) |
-           (targetg << 8) |
-           (targetb << 16) |
-           0xff000000;
+    return (targetr << 0) | (targetg << 8) | (targetb << 16) | 0xff000000;
 }
 
 unsigned int blend_mul(int source, int target)
 {
-    unsigned int sourcer = ((unsigned int)source >> 0) & 0xff;
-    unsigned int sourceg = ((unsigned int)source >> 8) & 0xff;
-    unsigned int sourceb = ((unsigned int)source >> 16) & 0xff;
-    unsigned int targetr = ((unsigned int)target >> 0) & 0xff;
-    unsigned int targetg = ((unsigned int)target >> 8) & 0xff;
-    unsigned int targetb = ((unsigned int)target >> 16) & 0xff;
+    unsigned int sourcer = ((unsigned int) source >> 0) & 0xff;
+    unsigned int sourceg = ((unsigned int) source >> 8) & 0xff;
+    unsigned int sourceb = ((unsigned int) source >> 16) & 0xff;
+    unsigned int targetr = ((unsigned int) target >> 0) & 0xff;
+    unsigned int targetg = ((unsigned int) target >> 8) & 0xff;
+    unsigned int targetb = ((unsigned int) target >> 16) & 0xff;
 
     targetr = (sourcer * targetr) >> 8;
     targetg = (sourceg * targetg) >> 8;
     targetb = (sourceb * targetb) >> 8;
 
-    return (targetr << 0) |
-           (targetg << 8) |
-           (targetb << 16) |
-           0xff000000;
+    return (targetr << 0) | (targetg << 8) | (targetb << 16) | 0xff000000;
 }
 
 unsigned int blend_add(int source, int target)
 {
-    unsigned int sourcer = ((unsigned int)source >> 0) & 0xff;
-    unsigned int sourceg = ((unsigned int)source >> 8) & 0xff;
-    unsigned int sourceb = ((unsigned int)source >> 16) & 0xff;
-    unsigned int targetr = ((unsigned int)target >> 0) & 0xff;
-    unsigned int targetg = ((unsigned int)target >> 8) & 0xff;
-    unsigned int targetb = ((unsigned int)target >> 16) & 0xff;
+    unsigned int sourcer = ((unsigned int) source >> 0) & 0xff;
+    unsigned int sourceg = ((unsigned int) source >> 8) & 0xff;
+    unsigned int sourceb = ((unsigned int) source >> 16) & 0xff;
+    unsigned int targetr = ((unsigned int) target >> 0) & 0xff;
+    unsigned int targetg = ((unsigned int) target >> 8) & 0xff;
+    unsigned int targetb = ((unsigned int) target >> 16) & 0xff;
 
     targetr += sourcer;
     targetg += sourceg;
     targetb += sourceb;
 
-    if (targetr > 0xff) targetr = 0xff;
-    if (targetg > 0xff) targetg = 0xff;
-    if (targetb > 0xff) targetb = 0xff;
+    if (targetr > 0xff)
+        targetr = 0xff;
+    if (targetg > 0xff)
+        targetg = 0xff;
+    if (targetb > 0xff)
+        targetb = 0xff;
 
-    return (targetr << 0) |
-           (targetg << 8) |
-           (targetb << 16) |
-           0xff000000;
+    return (targetr << 0) | (targetg << 8) | (targetb << 16) | 0xff000000;
 }
 
 void scaleblit()
@@ -255,11 +248,9 @@ void scaleblit()
     {
         for (int j = 0; j < WINDOW_WIDTH; j++)
         {
-            int c =
-                (int)((i * zoom) + (WINDOW_HEIGHT * expand)) * WINDOW_WIDTH +
-                (int)((j * zoom) + (WINDOW_WIDTH * expand));
-            g.framebuffer[yofs + j] =
-                blend_avg(g.framebuffer[yofs + j], g.tmp_buffer[c]);
+            int c = (int) ((i * zoom) + (WINDOW_HEIGHT * expand)) * WINDOW_WIDTH
+                    + (int) ((j * zoom) + (WINDOW_WIDTH * expand));
+            g.framebuffer[yofs + j] = blend_avg(g.framebuffer[yofs + j], g.tmp_buffer[c]);
         }
         yofs += WINDOW_WIDTH;
     }
@@ -271,7 +262,7 @@ void drawcircle(int x, int y, int r, int c)
         // vertical clipping: (top and bottom)
         if ((y - r + i) >= 0 && (y - r + i) < WINDOW_HEIGHT)
         {
-            int len = (int)(sqrt(r * r - (r - i) * (r - i)) * 2);
+            int len = (int) (sqrt(r * r - (r - i) * (r - i)) * 2);
             int xofs = x - len / 2;
 
             // left border
@@ -298,20 +289,27 @@ void drawcircle(int x, int y, int r, int c)
 
 void render(Uint64 aTicks)
 {
-    int posx = (int)((sin(aTicks * 0.000645234) + 1) * WINDOW_WIDTH / 2);
-    int posy = (int)((sin(aTicks * 0.000445234) + 1) * WINDOW_HEIGHT / 2);
+
+    int posx = (int) ((sin(aTicks * 0.000645234) + 1) * WINDOW_WIDTH / 2);
+    int posy = (int) ((sin(aTicks * 0.000445234) + 1) * WINDOW_HEIGHT / 2);
+    int posx2 = (int) ((sin(0 - aTicks * 0.000645234) + 1) * WINDOW_WIDTH / 2);
+    int posy2 = (int) ((sin(0 - aTicks * 0.000445234) + 1) * WINDOW_HEIGHT / 2);
     for (int i = 0; i < WINDOW_HEIGHT; i++)
     {
         for (int j = 0; j < WINDOW_WIDTH; j++)
         {
-            int lut = gLut[(i + posy) * WINDOW_WIDTH * 2 + j + posx];
+            int lut = gLut[(i + posy) * WINDOW_WIDTH * 2 + j + posx]
+                      - gLut[(i + posy2) * WINDOW_WIDTH * 2 + j + posx2];
             int mask = gMask[(i + posy) * WINDOW_WIDTH * 2 + j + posx];
+            int mask2 = gMask[(i + posy2) * WINDOW_WIDTH * 2 + j + posx2];
 
             g.framebuffer[j + i * WINDOW_WIDTH] =
-                blend_mul(
-                    gTexture[((lut + aTicks / 32) & 0xff) +
-                             (((lut >> 8) + aTicks / 8) & 0xff) * 256],
-                    mask);
+                blend_avg(blend_avg(gTexture[((lut + aTicks / 32) & 0xff)
+                                             + (((lut >> 8) + aTicks / 8) & 0xff) * 256],
+                                    mask),
+                          mask2);
+
+            // TODO : suggestions at https://solhsa.com/gp2/ch07.html
         }
     }
 }
