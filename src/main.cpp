@@ -58,7 +58,21 @@ void init_gfx()
             int xdist = j - (WINDOW_WIDTH);
             int ydist = i - (WINDOW_HEIGHT);
 
+#define DistanceShape 2
+#define DistanceFlower false
+
+#if DistanceShape == 1 // circle
             int distance = (int)sqrt((float)(xdist * xdist + ydist * ydist));
+#elif DistanceShape == 2 // square
+            int distance = (abs(xdist) > abs(ydist)) ? abs(xdist) : abs(ydist);
+#elif DistanceShape == 3 // diamond
+            int distance = (abs(xdist) + abs(ydist)) / 2;
+#endif
+
+#if DistanceFlower
+            distance += (int)(sin(atan2((float)xdist, (float)ydist) * 5) * 8);
+#endif
+
             if (distance > 0)
                 distance = (64 * 256 / distance) & 0xff;
 
