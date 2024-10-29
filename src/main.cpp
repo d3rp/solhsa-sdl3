@@ -14,6 +14,20 @@
 #include "SDL3/SDL.h"
 #include "SDL3/SDL_main.h"
 
+struct Bump
+{
+    // Picture
+    int* picture;
+    // Heightmap
+    int* heightmap;
+    // Lightmap
+    int* lightmap;
+    // Picture size
+    int picture_w, picture_h;
+} B;
+// Bump lookup table
+short* gBumpLut;
+
 #define TREECOUNT 32
 float gTreeCoord[TREECOUNT * 2];
 // Look-up table
@@ -30,7 +44,7 @@ struct SdlGlobal
     SDL_Window* window { nullptr };
     SDL_Renderer* renderer { nullptr };
     SDL_Texture* texture { nullptr };
-} g;
+} G;
 
 constexpr int WINDOW_WIDTH = 1920 / 2;
 constexpr int WINDOW_HEIGHT = 1080 / 2;
@@ -41,49 +55,28 @@ void putpixel(int x, int y, int color)
     {
         return;
     }
-    g.framebuffer[y * WINDOW_WIDTH + x] = color;
+    G.framebuffer[y * WINDOW_WIDTH + x] = color;
 }
 void init_gfx()
 {
     int x, y, n;
-    gTexture = (int*) stbi_load("../resources/tunneltexture.png", &x, &y, &n, 4);
-    gLut = new unsigned short[WINDOW_WIDTH * WINDOW_HEIGHT * 4];
-    gMask = new unsigned int[WINDOW_WIDTH * WINDOW_HEIGHT * 4];
+    B.picture = (int*) stbi_load("../resources/picture.png", &B.picture_w, &B.picture_h, &n, 4);
+    B.heightmap = (int*) stbi_load("../resources/heightmap.png", &x, &y, &n, 4);
+    B.lightmap = (int*) stbi_load("../resources/lightmap.png", &x, &y, &n, 4);
 
-    int i, j;
-    for (i = 0; i < WINDOW_HEIGHT * 2; i++)
+    gBumpLut = new short[B.picture_w * B.picture_h];
+    memset(gBumpLut, 0, sizeof(short) * B.picture_w * B.picture_h);
+
+    for (int i = 1; i < B.picture_h - 1; i++)
     {
-        for (j = 0; j < WINDOW_WIDTH * 2; j++)
+        for (int j = 1; j < B.picture_w - 1; j++)
         {
-            int xdist = j - (WINDOW_WIDTH);
-            int ydist = i - (WINDOW_HEIGHT);
+            int ydiff = ((((unsigned int*) B.heightmap)[j + (i - 1) * B.picture_w] & 0xff)
+                         - (((unsigned int*) B.heightmap)[j + (i + 1) * B.picture_w] & 0xff));
+            int xdiff = ((((unsigned int*) B.heightmap)[j - 1 + i * B.picture_w] & 0xff)
+                         - (((unsigned int*) B.heightmap)[j + 1 + i * B.picture_w] & 0xff));
 
-#define DistanceShape 1
-#define DistanceFlower false
-
-#if DistanceShape == 1  // circle
-            int distance = (int) sqrt((float) (xdist * xdist + ydist * ydist));
-#elif DistanceShape == 2  // square
-            int distance = (abs(xdist) > abs(ydist)) ? abs(xdist) : abs(ydist);
-#elif DistanceShape == 3  // diamond
-            int distance = (abs(xdist) + abs(ydist)) / 2;
-#endif
-
-#if DistanceFlower
-            distance += (int) (sin(atan2((float) xdist, (float) ydist) * 5) * 8);
-#endif
-
-            if (distance > 0)
-                distance = (64 * 256 / distance) & 0xff;
-
-            int d = distance;
-            if (d > 255)
-                d = 255;
-            gMask[i * WINDOW_WIDTH * 2 + j] = d * 0x010101;
-
-            int angle = (int) (((atan2((float) xdist, (float) ydist) / M_PI) + 1.0f) * 128);
-
-            gLut[i * WINDOW_WIDTH * 2 + j] = (distance << 8) + angle;
+            gBumpLut[i * B.picture_w + j] = ((ydiff & 0xff) << 8) | (xdiff & 0xff);
         }
     }
 }
@@ -91,7 +84,7 @@ void init_gfx()
 void newsnow()
 {
     for (int i = 0; i < 8; i++)
-        g.framebuffer[rand() % (WINDOW_WIDTH - 2) + 1] = 0xffffffff;
+        G.framebuffer[rand() % (WINDOW_WIDTH - 2) + 1] = 0xffffffff;
 }
 
 void snowfall()
@@ -103,23 +96,23 @@ void snowfall()
         for (int i = 1; i < WINDOW_WIDTH - 1; i++)
         {
             constexpr int white_pxl = (int) 0xffffffff;
-            if (g.framebuffer[ypos + i] < white_pxl)
+            if (G.framebuffer[ypos + i] < white_pxl)
                 continue;
 
-            if (g.framebuffer[ypos + i + WINDOW_WIDTH] == 0xff000000)
+            if (G.framebuffer[ypos + i + WINDOW_WIDTH] == 0xff000000)
             {
-                g.framebuffer[ypos + i + WINDOW_WIDTH] = 0xffffffff;
-                g.framebuffer[ypos + i] = 0xff000000;
+                G.framebuffer[ypos + i + WINDOW_WIDTH] = 0xffffffff;
+                G.framebuffer[ypos + i] = 0xff000000;
             }
-            else if (g.framebuffer[ypos + i + WINDOW_WIDTH - 1] == 0xff000000)
+            else if (G.framebuffer[ypos + i + WINDOW_WIDTH - 1] == 0xff000000)
             {
-                g.framebuffer[ypos + i + WINDOW_WIDTH - 1] = 0xffffffff;
-                g.framebuffer[ypos + i] = 0xff000000;
+                G.framebuffer[ypos + i + WINDOW_WIDTH - 1] = 0xffffffff;
+                G.framebuffer[ypos + i] = 0xff000000;
             }
-            else if (g.framebuffer[ypos + i + WINDOW_WIDTH + 1] == 0xff000000)
+            else if (G.framebuffer[ypos + i + WINDOW_WIDTH + 1] == 0xff000000)
             {
-                g.framebuffer[ypos + i + WINDOW_WIDTH + 1] = 0xffffffff;
-                g.framebuffer[ypos + i] = 0xff000000;
+                G.framebuffer[ypos + i + WINDOW_WIDTH + 1] = 0xffffffff;
+                G.framebuffer[ypos + i] = 0xff000000;
             }
         }
     }
@@ -154,7 +147,7 @@ void drawsprite(int x, int y, unsigned int color)
     {
         for (j = 0; j < 16; j++, c++)
             if (sprite[c])
-                g.framebuffer[yofs + j] = color;
+                G.framebuffer[yofs + j] = color;
 
         yofs += WINDOW_WIDTH;
     }
@@ -173,13 +166,13 @@ bool update()
     char* pix;
     int pitch;
 
-    SDL_LockTexture(g.texture, nullptr, (void**) &pix, &pitch);
+    SDL_LockTexture(G.texture, nullptr, (void**) &pix, &pitch);
     for (int i = 0, sp = 0, dp = 0; i < WINDOW_HEIGHT; i++, dp += WINDOW_WIDTH, sp += pitch)
-        memcpy(pix + sp, g.framebuffer + dp, WINDOW_WIDTH * 4);
+        memcpy(pix + sp, G.framebuffer + dp, WINDOW_WIDTH * 4);
 
-    SDL_UnlockTexture(g.texture);
-    SDL_RenderTexture(g.renderer, g.texture, nullptr, nullptr);
-    SDL_RenderPresent(g.renderer);
+    SDL_UnlockTexture(G.texture);
+    SDL_RenderTexture(G.renderer, G.texture, nullptr, nullptr);
+    SDL_RenderPresent(G.renderer);
     SDL_Delay(1);
     return true;
 }
@@ -250,7 +243,7 @@ void scaleblit()
         {
             int c = (int) ((i * zoom) + (WINDOW_HEIGHT * expand)) * WINDOW_WIDTH
                     + (int) ((j * zoom) + (WINDOW_WIDTH * expand));
-            g.framebuffer[yofs + j] = blend_avg(g.framebuffer[yofs + j], g.tmp_buffer[c]);
+            G.framebuffer[yofs + j] = blend_avg(G.framebuffer[yofs + j], G.tmp_buffer[c]);
         }
         yofs += WINDOW_WIDTH;
     }
@@ -282,34 +275,32 @@ void drawcircle(int x, int y, int r, int c)
             // note that len may be 0 at this point,
             // and no pixels get drawn!
             for (int j = 0; j < len; j++)
-                g.framebuffer[ofs + j] = c;
+                G.framebuffer[ofs + j] = c;
         }
     }
 }
 
 void render(Uint64 aTicks)
 {
-
-    int posx = (int) ((sin(aTicks * 0.000645234) + 1) * WINDOW_WIDTH / 2);
-    int posy = (int) ((sin(aTicks * 0.000445234) + 1) * WINDOW_HEIGHT / 2);
-    int posx2 = (int) ((sin(0 - aTicks * 0.000645234) + 1) * WINDOW_WIDTH / 2);
-    int posy2 = (int) ((sin(0 - aTicks * 0.000445234) + 1) * WINDOW_HEIGHT / 2);
-    for (int i = 0; i < WINDOW_HEIGHT; i++)
+    int posx = (int) ((sin(aTicks * 0.000645234) + 1) * B.picture_w / 4);
+    int posy = (int) ((sin(aTicks * 0.000445234) + 1) * B.picture_h / 4);
+    for (int y = 0; y < WINDOW_HEIGHT; y++)
     {
-        for (int j = 0; j < WINDOW_WIDTH; j++)
+        for (int x = 0; x < WINDOW_WIDTH; x++)
         {
-            int lut = gLut[(i + posy) * WINDOW_WIDTH * 2 + j + posx]
-                      - gLut[(i + posy2) * WINDOW_WIDTH * 2 + j + posx2];
-            int mask = gMask[(i + posy) * WINDOW_WIDTH * 2 + j + posx];
-            int mask2 = gMask[(i + posy2) * WINDOW_WIDTH * 2 + j + posx2];
-
-            g.framebuffer[j + i * WINDOW_WIDTH] =
-                blend_avg(blend_avg(gTexture[((lut + aTicks / 32) & 0xff)
-                                             + (((lut >> 8) + aTicks / 8) & 0xff) * 256],
-                                    mask),
-                          mask2);
-
-            // TODO : suggestions at https://solhsa.com/gp2/ch07.html
+            int i = y * B.picture_h / WINDOW_HEIGHT;
+            int j = x * B.picture_w / WINDOW_WIDTH;
+            int u = j + ((signed char) gBumpLut[i * B.picture_w + j]) - posx;
+            int v = i + (gBumpLut[i * B.picture_w + j] / 256) - posy;
+            if (v < 0 || v >= 256 || u < 0 || u >= 256)
+            {
+                G.framebuffer[x + y * WINDOW_WIDTH] = B.picture[j + i * B.picture_w];
+            }
+            else
+            {
+                G.framebuffer[x + y * WINDOW_WIDTH] =
+                    blend_add(B.picture[j + i * B.picture_w], B.lightmap[u + v * 256]);
+            }
         }
     }
 }
@@ -318,7 +309,7 @@ void loop()
 {
     if (!update())
     {
-        g.done = true;
+        G.done = true;
 #ifdef __EMSCRIPTEN__
         emscripten_cancel_main_loop();
 #endif
@@ -334,16 +325,16 @@ bool init_sdl()
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
         return false;
 
-    g.framebuffer = new int[WINDOW_WIDTH * WINDOW_HEIGHT];
-    g.window = SDL_CreateWindow("SDL3 window", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
-    g.renderer = SDL_CreateRenderer(g.window, nullptr);
-    g.texture = SDL_CreateTexture(g.renderer,
+    G.framebuffer = new int[WINDOW_WIDTH * WINDOW_HEIGHT];
+    G.window = SDL_CreateWindow("SDL3 window", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+    G.renderer = SDL_CreateRenderer(G.window, nullptr);
+    G.texture = SDL_CreateTexture(G.renderer,
                                   SDL_PIXELFORMAT_ABGR8888,
                                   SDL_TEXTUREACCESS_STREAMING,
                                   WINDOW_WIDTH,
                                   WINDOW_HEIGHT);
 
-    if (!g.framebuffer || !g.window || !g.renderer || !g.texture)
+    if (!G.framebuffer || !G.window || !G.renderer || !G.texture)
         return false;
 
     return true;
@@ -351,9 +342,9 @@ bool init_sdl()
 
 void destroy()
 {
-    SDL_DestroyTexture(g.texture);
-    SDL_DestroyRenderer(g.renderer);
-    SDL_DestroyWindow(g.window);
+    SDL_DestroyTexture(G.texture);
+    SDL_DestroyRenderer(G.renderer);
+    SDL_DestroyWindow(G.window);
     SDL_Quit();
 }
 
@@ -367,7 +358,7 @@ int main(int argc, char** argv)
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(loop, 0, 1);
 #else
-    while (!g.done)
+    while (!G.done)
         loop();
 #endif
 
