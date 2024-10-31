@@ -383,16 +383,20 @@ void render(Uint64 aTicks)
     {
         int* curr_line = G.framebuffer + i * WINDOW_WIDTH;
         memcpy(curr_line, prev_line, WINDOW_WIDTH * sizeof(int));
-        int xoffset = sin((i + aTicks * 0.01) * 0.03) *
-                      sin((i + aTicks * 0.02) * 0.04) *
-                      sin((i + aTicks * 0.03) * 0.05) *
-                      (WINDOW_WIDTH / 2 - 32) +
-                      WINDOW_WIDTH / 2;
-
-        for (int j = 0; j < 16; j++)
+        for (int k = 0; k < 3; k++)
         {
-            curr_line[(j) + xoffset] = j * 15 | 0xff7f0000;
-            curr_line[(j + 16) + xoffset] = (16-j) * 15 | 0xff7f0000;
+            int xoffset = sin((i + aTicks * 0.01 * k) * 0.03)
+                              * sin((i + aTicks * 0.005 + k * 100) * 0.04)
+                              * sin((i + aTicks * 0.0025) * 0.05) * (WINDOW_WIDTH / 3 - 32)
+                          + k * WINDOW_WIDTH / 6 + WINDOW_WIDTH / 3;
+
+#define ROT(a, b) ((((a) << (b)) | ((a) >> (24 - (b)))) & 0xffffff)
+
+            for (int j = 0; j < 16; j++)
+            {
+                curr_line[(j) + xoffset] = ROT(j * 15 | 0x3f0000, k * 8) | 0xff000000;
+                curr_line[(j + 16) + xoffset] = ROT((16 - j) * 15 | 0x3f0000, k * 8) | 0xff000000;
+            }
         }
 
         prev_line = curr_line;
