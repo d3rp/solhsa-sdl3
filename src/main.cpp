@@ -38,6 +38,7 @@ int* gTexture;
 unsigned int* gMask;
 struct SdlGlobal
 {
+    SDL_FPoint mouse_pos;
     bool done { false };
     int* framebuffer { nullptr };
     unsigned int* tmp_buffer;
@@ -57,10 +58,11 @@ void putpixel(int x, int y, int color)
     }
     G.framebuffer[y * WINDOW_WIDTH + x] = color;
 }
+
 void init_gfx()
 {
     int x, y, n;
-    B.picture = (int*) stbi_load("../resources/picture.png", &B.picture_w, &B.picture_h, &n, 4);
+    B.picture = (int*) stbi_load("../resources/black.png", &B.picture_w, &B.picture_h, &n, 4);
     B.heightmap = (int*) stbi_load("../resources/heightmap.png", &x, &y, &n, 4);
     B.lightmap = (int*) stbi_load("../resources/lightmap.png", &x, &y, &n, 4);
 
@@ -152,6 +154,7 @@ void drawsprite(int x, int y, unsigned int color)
         yofs += WINDOW_WIDTH;
     }
 }
+
 bool update()
 {
     SDL_Event e;
@@ -161,6 +164,9 @@ bool update()
             return false;
         if (e.type == SDL_EVENT_KEY_UP && (e.key.key == SDLK_ESCAPE || e.key.key == SDLK_Q))
             return false;
+        if (e.type == SDL_EVENT_MOUSE_MOTION)
+            G.mouse_pos = {e.motion.x, e.motion.y};
+
     }
 
     char* pix;
@@ -248,6 +254,7 @@ void scaleblit()
         yofs += WINDOW_WIDTH;
     }
 }
+
 void drawcircle(int x, int y, int r, int c)
 {
     for (int i = 0; i < 2 * r; i++)
@@ -282,8 +289,10 @@ void drawcircle(int x, int y, int r, int c)
 
 void render(Uint64 aTicks)
 {
-    int posx = (int) ((sin(aTicks * 0.000645234) + 1) * B.picture_w / 4);
-    int posy = (int) ((sin(aTicks * 0.000445234) + 1) * B.picture_h / 4);
+    // int posx = (int) ((sin(aTicks * 0.000645234) + 1) * B.picture_w / 4);
+    // int posy = (int) ((sin(aTicks * 0.000445234) + 1) * B.picture_h / 4);
+    int posx = G.mouse_pos.x / 2 - 100;
+    int posy = G.mouse_pos.y / 2 - 100;
     for (int y = 0; y < WINDOW_HEIGHT; y++)
     {
         for (int x = 0; x < WINDOW_WIDTH; x++)
