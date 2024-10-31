@@ -62,7 +62,7 @@ void putpixel(int x, int y, int color)
 void init_gfx()
 {
     int x, y, n;
-    B.picture = (int*) stbi_load("../resources/black.png", &B.picture_w, &B.picture_h, &n, 4);
+    B.picture = (int*) stbi_load("../resources/picture.png", &B.picture_w, &B.picture_h, &n, 4);
     B.heightmap = (int*) stbi_load("../resources/heightmap.png", &x, &y, &n, 4);
     B.lightmap = (int*) stbi_load("../resources/lightmap.png", &x, &y, &n, 4);
 
@@ -165,8 +165,7 @@ bool update()
         if (e.type == SDL_EVENT_KEY_UP && (e.key.key == SDLK_ESCAPE || e.key.key == SDLK_Q))
             return false;
         if (e.type == SDL_EVENT_MOUSE_MOTION)
-            G.mouse_pos = {e.motion.x, e.motion.y};
-
+            G.mouse_pos = { e.motion.x, e.motion.y };
     }
 
     char* pix;
@@ -287,31 +286,51 @@ void drawcircle(int x, int y, int r, int c)
     }
 }
 
-void render(Uint64 aTicks)
+void dist(float v)
 {
-    // int posx = (int) ((sin(aTicks * 0.000645234) + 1) * B.picture_w / 4);
-    // int posy = (int) ((sin(aTicks * 0.000445234) + 1) * B.picture_h / 4);
-    int posx = G.mouse_pos.x / 2 - 100;
-    int posy = G.mouse_pos.y / 2 - 100;
-    for (int y = 0; y < WINDOW_HEIGHT; y++)
+    int i, j;
+    int xdist[WINDOW_WIDTH];
+    int ydist[WINDOW_HEIGHT];
+    const int zmax = WINDOW_HEIGHT;
+    int zdist[zmax];
+    static int z = 0;
+    int z_offset = ++z % zmax;
+    int ypos = (int) (-pow(v + 0.001f * z_offset, 5) * (B.picture_h + 64));
+    for (int i = 0; i < WINDOW_WIDTH; i++)
     {
-        for (int x = 0; x < WINDOW_WIDTH; x++)
+        xdist[i] = zdist[z_offset];
+        // xdist[i] = sin((double) (size_t) (void*) &xdist[i]);  //(int) (sin((v * i) * 0.0324857)
+        // * v
+        // * 32);
+    }
+
+    for (int i = 0; i < WINDOW_HEIGHT; i++)
+    {
+        ydist[i] = zdist[z_offset + i];
+        // ydist[i] = log((float) i);  //(int) (sin((v * i) * 0.0234557) * v * 32);
+    }
+    for (i = 0; i < B.picture_h; i++)
+    {
+        for (j = 0; j < B.picture_w; j++)
         {
-            int i = y * B.picture_h / WINDOW_HEIGHT;
-            int j = x * B.picture_w / WINDOW_WIDTH;
-            int u = j + ((signed char) gBumpLut[i * B.picture_w + j]) - posx;
-            int v = i + (gBumpLut[i * B.picture_w + j] / 256) - posy;
-            if (v < 0 || v >= 256 || u < 0 || u >= 256)
+            int u = j + ydist[i];
+            int v = i + xdist[j] + ypos;
+            if (u >= 0 && u < B.picture_w && v >= 0 && v < B.picture_h)
             {
-                G.framebuffer[x + y * WINDOW_WIDTH] = B.picture[j + i * B.picture_w];
+                G.framebuffer[j + i * WINDOW_WIDTH] = B.picture[u + v * B.picture_w];
             }
             else
             {
-                G.framebuffer[x + y * WINDOW_WIDTH] =
-                    blend_add(B.picture[j + i * B.picture_w], B.lightmap[u + v * 256]);
+                G.framebuffer[j + i * WINDOW_WIDTH] = B.heightmap[j + i * B.picture_w];
             }
         }
     }
+}
+
+void render(Uint64 aTicks)
+{
+    dist(((aTicks % 8000) / 4000.0f) - 1.0f);
+    // dist(sin(aTicks * 0.001f) * 2.0f - 1.0f);
 }
 
 void loop()
