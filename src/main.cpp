@@ -383,7 +383,11 @@ void render(Uint64 aTicks)
     {
         int* curr_line = G.framebuffer + i * WINDOW_WIDTH;
         memcpy(curr_line, prev_line, WINDOW_WIDTH * sizeof(int));
-        int xoffset = WINDOW_WIDTH / 2 + sin((i + aTicks * 0.01) * 0.03) * (WINDOW_WIDTH / 2 - 32);
+        int xoffset = sin((i + aTicks * 0.01) * 0.03) *
+                      sin((i + aTicks * 0.02) * 0.04) *
+                      sin((i + aTicks * 0.03) * 0.05) *
+                      (WINDOW_WIDTH / 2 - 32) +
+                      WINDOW_WIDTH / 2;
 
         for (int j = 0; j < 16; j++)
         {
