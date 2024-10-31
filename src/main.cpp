@@ -47,6 +47,17 @@ struct SdlGlobal
     SDL_Texture* texture { nullptr };
 } G;
 
+// Vertex structure
+struct Vertex
+{
+    float x, y, z;
+};
+
+// Original vertices
+Vertex* gVtx;
+// Transformed vertices
+Vertex* gRVtx;
+
 constexpr int WINDOW_WIDTH = 1920 / 2;
 constexpr int WINDOW_HEIGHT = 1080 / 2;
 
@@ -59,26 +70,24 @@ void putpixel(int x, int y, int color)
     G.framebuffer[y * WINDOW_WIDTH + x] = color;
 }
 
+constexpr int vertices_n = 512;
 void init_gfx()
 {
-    int x, y, n;
-    B.picture = (int*) stbi_load("../resources/picture.png", &B.picture_w, &B.picture_h, &n, 4);
-    B.heightmap = (int*) stbi_load("../resources/heightmap.png", &x, &y, &n, 4);
-    B.lightmap = (int*) stbi_load("../resources/lightmap.png", &x, &y, &n, 4);
+    gVtx = new Vertex[vertices_n];
+    gRVtx = new Vertex[vertices_n];
 
-    gBumpLut = new short[B.picture_w * B.picture_h];
-    memset(gBumpLut, 0, sizeof(short) * B.picture_w * B.picture_h);
-
-    for (int i = 1; i < B.picture_h - 1; i++)
+    for (int i = 0; i < vertices_n; i++)
     {
-        for (int j = 1; j < B.picture_w - 1; j++)
+        gVtx[i].x = (rand() % 32768) - 10384.0f;
+        gVtx[i].y = (rand() % 32768) - 16384.0f;
+        gVtx[i].z = (rand() % 32768) - 12384.0f;
+        float len =
+            (float) sqrt(gVtx[i].x * gVtx[i].x + gVtx[i].y * gVtx[i].y + gVtx[i].z * gVtx[i].z);
+        if (len != 0)
         {
-            int ydiff = ((((unsigned int*) B.heightmap)[j + (i - 1) * B.picture_w] & 0xff)
-                         - (((unsigned int*) B.heightmap)[j + (i + 1) * B.picture_w] & 0xff));
-            int xdiff = ((((unsigned int*) B.heightmap)[j - 1 + i * B.picture_w] & 0xff)
-                         - (((unsigned int*) B.heightmap)[j + 1 + i * B.picture_w] & 0xff));
-
-            gBumpLut[i * B.picture_w + j] = ((ydiff & 0xff) << 8) | (xdiff & 0xff);
+            gVtx[i].x /= len;
+            gVtx[i].y /= len;
+            gVtx[i].z /= len;
         }
     }
 }
@@ -327,10 +336,83 @@ void dist(float v)
     }
 }
 
+void rotate_z(double angle)
+{
+    float ca = (float) cos(angle);
+    float sa = (float) sin(angle);
+    for (int i = 0; i < vertices_n; i++)
+    {
+        float x = gRVtx[i].x * ca - gRVtx[i].y * sa;
+        float y = gRVtx[i].x * sa + gRVtx[i].y * ca;
+        gRVtx[i].x = x;
+        gRVtx[i].y = y;
+    }
+}
+void rotate_y(double angle)
+{
+    float ca = (float) cos(angle);
+    float sa = (float) sin(angle);
+    for (int i = 0; i < vertices_n; i++)
+    {
+        float z = gRVtx[i].z * ca - gRVtx[i].x * sa;
+        float x = gRVtx[i].z * sa + gRVtx[i].x * ca;
+        gRVtx[i].z = z;
+        gRVtx[i].x = x;
+    }
+}
+
+void rotate_x(double angle)
+{
+    float ca = (float) cos(angle);
+    float sa = (float) sin(angle);
+    for (int i = 0; i < vertices_n; i++)
+    {
+        float y = gRVtx[i].y * ca - gRVtx[i].z * sa;
+        float z = gRVtx[i].y * sa + gRVtx[i].z * ca;
+        gRVtx[i].y = y;
+        gRVtx[i].z = z;
+    }
+}
 void render(Uint64 aTicks)
 {
-    dist(((aTicks % 8000) / 4000.0f) - 1.0f);
-    // dist(sin(aTicks * 0.001f) * 2.0f - 1.0f);
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
+        G.framebuffer[i] = 0xff000000;
+
+    drawcircle(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2, WINDOW_WIDTH / 4, 0xff6f2f2f);
+
+    memcpy(gRVtx, gVtx, sizeof(Vertex) * vertices_n);
+
+    double rotz = aTicks * 0.0005;
+    double roty = aTicks * 0.002;
+
+    rotate_y(roty * sin(rotz) * 0.1f);
+    rotate_z(rotz);
+
+    for (int i = 0; i < vertices_n; i++)
+    {
+        int c = 0xffffce1e;
+        if (gRVtx[i].z < 0)
+            c = 0xff7f6f3f;
+
+        drawcircle((int) (gRVtx[i].x * (WINDOW_WIDTH / 4) + WINDOW_WIDTH / 2),
+                   (int) (gRVtx[i].y * (WINDOW_WIDTH / 4) + WINDOW_HEIGHT / 2),
+                   2,
+                   c);
+
+        drawcircle((int) ((WINDOW_WIDTH / 3) * sin(rotz) + WINDOW_WIDTH / 2),
+                   (int) ((WINDOW_WIDTH / 3) * cos(rotz) + WINDOW_HEIGHT / 2),
+                   6,
+                   0xffcfcfcf);
+
+        float cos2 = cos(rotz);
+        float sin2 = sin(rotz) * sin(0.1f * rotz);
+        // int c2 = -0.75f < cos2 && cos2 < 0.75f ? 0xcf7f4f4f : 0xcfcfcfcf;
+        int c2 = 0x11666666;
+        drawcircle((int) ((WINDOW_WIDTH / 3) * cos2 + WINDOW_WIDTH / 2),
+                   (int) ((WINDOW_WIDTH / 3) * sin2 + WINDOW_HEIGHT / 2),
+                   6,
+                   c2);
+    }
 }
 
 void loop()
