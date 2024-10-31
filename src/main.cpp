@@ -378,40 +378,15 @@ void render(Uint64 aTicks)
     for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
         G.framebuffer[i] = 0xff000000;
 
-    drawcircle(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2, WINDOW_WIDTH / 4, 0xff6f2f2f);
-
-    memcpy(gRVtx, gVtx, sizeof(Vertex) * vertices_n);
-
-    double rotz = aTicks * 0.0005;
-    double roty = aTicks * 0.002;
-
-    rotate_y(roty * sin(rotz) * 0.1f);
-    rotate_z(rotz);
-
-    for (int i = 0; i < vertices_n; i++)
+    int* prev_line = G.framebuffer;
+    for (int i = 0; i < WINDOW_HEIGHT; i++)
     {
-        int c = 0xffffce1e;
-        if (gRVtx[i].z < 0)
-            c = 0xff7f6f3f;
+        int* curr_line = G.framebuffer + i * WINDOW_WIDTH;
+        memcpy(curr_line, prev_line, WINDOW_WIDTH * sizeof(int));
 
-        drawcircle((int) (gRVtx[i].x * (WINDOW_WIDTH / 4) + WINDOW_WIDTH / 2),
-                   (int) (gRVtx[i].y * (WINDOW_WIDTH / 4) + WINDOW_HEIGHT / 2),
-                   2,
-                   c);
+        curr_line[i] = 0xff0000ff;
 
-        drawcircle((int) ((WINDOW_WIDTH / 3) * sin(rotz) + WINDOW_WIDTH / 2),
-                   (int) ((WINDOW_WIDTH / 3) * cos(rotz) + WINDOW_HEIGHT / 2),
-                   6,
-                   0xffcfcfcf);
-
-        float cos2 = cos(rotz);
-        float sin2 = sin(rotz) * sin(0.1f * rotz);
-        // int c2 = -0.75f < cos2 && cos2 < 0.75f ? 0xcf7f4f4f : 0xcfcfcfcf;
-        int c2 = 0x11666666;
-        drawcircle((int) ((WINDOW_WIDTH / 3) * cos2 + WINDOW_WIDTH / 2),
-                   (int) ((WINDOW_WIDTH / 3) * sin2 + WINDOW_HEIGHT / 2),
-                   6,
-                   c2);
+        prev_line = curr_line;
     }
 }
 
