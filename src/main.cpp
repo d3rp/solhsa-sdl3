@@ -57,7 +57,7 @@ struct Vertex
 Vertex* gVtx;
 // Transformed vertices
 Vertex* gRVtx;
-int *gBall;
+int* gBall;
 int* gFrameBufferPile;
 int gFrame = 0;
 constexpr int WINDOW_WIDTH = 1920 / 2;
@@ -73,15 +73,6 @@ void putpixel(int x, int y, int color)
 }
 
 constexpr int vertices_n = 512;
-void init_gfx()
-{
-    int x, y, n;
-    gBall = (int*)stbi_load("../resources/ball.png", &x, &y, &n, 4);
-
-    gFrameBufferPile = new int[WINDOW_WIDTH * WINDOW_HEIGHT * 16];
-    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT * 16; i++)
-        gFrameBufferPile[i] = 0xff000000;
-}
 
 void newsnow()
 {
@@ -237,21 +228,13 @@ unsigned int blend_add(int source, int target)
     return (targetr << 0) | (targetg << 8) | (targetb << 16) | 0xff000000;
 }
 
-void scaleblit()
+void drawball(int x, int y, int c)
 {
-    constexpr double zoom = 0.99;
-    constexpr double expand = (1.0 - zoom) * 0.5;
-    int yofs = 0;
-    for (int i = 0; i < WINDOW_HEIGHT; i++)
-    {
-        for (int j = 0; j < WINDOW_WIDTH; j++)
-        {
-            int c = (int) ((i * zoom) + (WINDOW_HEIGHT * expand)) * WINDOW_WIDTH
-                    + (int) ((j * zoom) + (WINDOW_WIDTH * expand));
-            G.framebuffer[yofs + j] = blend_avg(G.framebuffer[yofs + j], G.tmp_buffer[c]);
-        }
-        yofs += WINDOW_WIDTH;
-    }
+    for (int i = 0; i < 64; i++)
+        for (int j = 0; j < 64; j++)
+            if (gBall[i * 64 + j] != 0xff000000)
+                G.framebuffer[x + j + (y + i) * WINDOW_WIDTH] =
+                    blend_mul(gBall[i * 64 + j], c) | 0xff000000;
 }
 
 void drawcircle(int x, int y, int r, int c)
@@ -283,6 +266,78 @@ void drawcircle(int x, int y, int r, int c)
             for (int j = 0; j < len; j++)
                 G.framebuffer[ofs + j] = c;
         }
+    }
+}
+void init_gfx()
+{
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
+        G.framebuffer[i] = 0xff000000;
+
+    for (int i = 0; i < WINDOW_HEIGHT / 2; i++)
+    {
+        int c = (0xff * i) / (WINDOW_HEIGHT / 2);
+        c = 0x010000 * c | 0xff000000;
+        for (int j = 0; j < WINDOW_WIDTH; j++)
+        {
+            G.framebuffer[i * WINDOW_WIDTH + j] = c;
+        }
+    }
+    for (int i = 0; i < 100; i++)
+    {
+        int y = rand() % (WINDOW_HEIGHT / 2);
+        int x = rand() % WINDOW_WIDTH;
+        int c = rand() % 0xff;
+        c = 0x010101 * c | 0xff000000;
+        G.framebuffer[y * WINDOW_WIDTH + x] = blend_add(c, G.framebuffer[y * WINDOW_WIDTH + x]);
+    }
+    drawcircle(WINDOW_WIDTH / 2, 100, 60, 0xffff7f00);
+    // ground
+    for (int i = 0; i < WINDOW_WIDTH; i++)
+    {
+        int h = (sin(i * 0.01) * sin(i * 0.02) * sin(i * 0.03)) * WINDOW_HEIGHT / 20
+                + WINDOW_HEIGHT / 10;
+        for (int j = WINDOW_HEIGHT / 2 - h; j < WINDOW_HEIGHT / 2; j++)
+        {
+            G.framebuffer[j * WINDOW_WIDTH + i] = 0xff114466;
+        }
+    }
+    // trees
+    for (int count = 0; count < 60; count++)
+    {
+        int xofs = rand() % WINDOW_WIDTH;
+        int yofs = WINDOW_HEIGHT / 2 - 60 + count;
+        int ht = rand() % WINDOW_HEIGHT / 10 + WINDOW_HEIGHT / 5;
+
+        int c = rand() % 0x1f;
+        c = 0x000100 * c | 0xff000000;
+
+        for (int i = 0; i < ht; i++)
+        {
+            int w = (ht / 3) * (ht - i) / ht;
+            int nudge = (w > 3 ? rand() % 7 - 3 : 0);
+            for (int j = 0; j < w; j++)
+            {
+                int p = j - w / 2 + xofs + nudge;
+                if (p >= 0 && p < WINDOW_WIDTH)
+                    G.framebuffer[(yofs - i) * WINDOW_WIDTH + p] = c;
+            }
+        }
+    }
+}
+void scaleblit()
+{
+    constexpr double zoom = 0.99;
+    constexpr double expand = (1.0 - zoom) * 0.5;
+    int yofs = 0;
+    for (int i = 0; i < WINDOW_HEIGHT; i++)
+    {
+        for (int j = 0; j < WINDOW_WIDTH; j++)
+        {
+            int c = (int) ((i * zoom) + (WINDOW_HEIGHT * expand)) * WINDOW_WIDTH
+                    + (int) ((j * zoom) + (WINDOW_WIDTH * expand));
+            G.framebuffer[yofs + j] = blend_avg(G.framebuffer[yofs + j], G.tmp_buffer[c]);
+        }
+        yofs += WINDOW_WIDTH;
     }
 }
 
@@ -363,38 +418,19 @@ void rotate_x(double angle)
         gRVtx[i].z = z;
     }
 }
-void drawball(int x, int y, int c)
-{
-    for (int i = 0; i < 64; i++)
-        for (int j = 0; j < 64; j++)
-            if (gBall[i * 64 + j] != 0xff000000)
-                G.framebuffer[x + j + (y + i) * WINDOW_WIDTH] =
-                  blend_mul(gBall[i * 64 + j], c) | 0xff000000;
-}
 
 void render(Uint64 aTicks)
 {
-    gFrame = (gFrame + 1) % 16;
-    G.framebuffer = gFrameBufferPile + WINDOW_WIDTH * WINDOW_HEIGHT * gFrame;
-
-    int xpos =
-        sin(aTicks * 0.0006) *
-        sin(aTicks * 0.00115) *
-        (WINDOW_WIDTH - 128) / 2 +
-        WINDOW_WIDTH / 2 - 32;
-
-    int ypos =
-        cos(aTicks * 0.0007) *
-        sin(aTicks * 0.00125) *
-        (WINDOW_HEIGHT - 128) / 2 +
-        WINDOW_HEIGHT / 2 - 32;
-
-    drawball(xpos, ypos,
-        ((int)(sin(aTicks * 0.0001 + 0 * M_PI * 2 / 3) * 127 + 128) << 16) |
-        ((int)(sin(aTicks * 0.0001 + 1 * M_PI * 2 / 3) * 127 + 128) << 8) |
-        ((int)(sin(aTicks * 0.0001 + 2 * M_PI * 2 / 3) * 127 + 128) << 0));
-
-
+    for (int i = 0; i < WINDOW_HEIGHT / 2; i++)
+    {
+        int ypos = (i + WINDOW_HEIGHT / 2) * WINDOW_WIDTH;
+        float z = i / (float)(WINDOW_HEIGHT / 2);
+        int wiggle = i + sin(aTicks * -0.001 + i * (2 - z) * 0.2) * 32 * z;
+        if (wiggle < 0) wiggle = 0;
+        if (wiggle > WINDOW_HEIGHT / 2) wiggle = WINDOW_HEIGHT / 2;
+        int srcpos = (WINDOW_HEIGHT / 2 - wiggle) * WINDOW_WIDTH;
+        memcpy(G.framebuffer + ypos, G.framebuffer + srcpos, WINDOW_WIDTH * sizeof(int));
+    }
 }
 
 void loop()
