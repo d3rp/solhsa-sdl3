@@ -57,7 +57,9 @@ struct Vertex
 Vertex* gVtx;
 // Transformed vertices
 Vertex* gRVtx;
-
+int *gBall;
+int* gFrameBufferPile;
+int gFrame = 0;
 constexpr int WINDOW_WIDTH = 1920 / 2;
 constexpr int WINDOW_HEIGHT = 1080 / 2;
 
@@ -73,23 +75,12 @@ void putpixel(int x, int y, int color)
 constexpr int vertices_n = 512;
 void init_gfx()
 {
-    gVtx = new Vertex[vertices_n];
-    gRVtx = new Vertex[vertices_n];
+    int x, y, n;
+    gBall = (int*)stbi_load("../resources/ball.png", &x, &y, &n, 4);
 
-    for (int i = 0; i < vertices_n; i++)
-    {
-        gVtx[i].x = (rand() % 32768) - 10384.0f;
-        gVtx[i].y = (rand() % 32768) - 16384.0f;
-        gVtx[i].z = (rand() % 32768) - 12384.0f;
-        float len =
-            (float) sqrt(gVtx[i].x * gVtx[i].x + gVtx[i].y * gVtx[i].y + gVtx[i].z * gVtx[i].z);
-        if (len != 0)
-        {
-            gVtx[i].x /= len;
-            gVtx[i].y /= len;
-            gVtx[i].z /= len;
-        }
-    }
+    gFrameBufferPile = new int[WINDOW_WIDTH * WINDOW_HEIGHT * 16];
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT * 16; i++)
+        gFrameBufferPile[i] = 0xff000000;
 }
 
 void newsnow()
@@ -360,7 +351,6 @@ void rotate_y(double angle)
         gRVtx[i].x = x;
     }
 }
-
 void rotate_x(double angle)
 {
     float ca = (float) cos(angle);
@@ -373,34 +363,38 @@ void rotate_x(double angle)
         gRVtx[i].z = z;
     }
 }
+void drawball(int x, int y, int c)
+{
+    for (int i = 0; i < 64; i++)
+        for (int j = 0; j < 64; j++)
+            if (gBall[i * 64 + j] != 0xff000000)
+                G.framebuffer[x + j + (y + i) * WINDOW_WIDTH] =
+                  blend_mul(gBall[i * 64 + j], c) | 0xff000000;
+}
+
 void render(Uint64 aTicks)
 {
-    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
-        G.framebuffer[i] = 0xff000000;
+    gFrame = (gFrame + 1) % 16;
+    G.framebuffer = gFrameBufferPile + WINDOW_WIDTH * WINDOW_HEIGHT * gFrame;
 
-    int* prev_line = G.framebuffer;
-    for (int i = 0; i < WINDOW_HEIGHT; i++)
-    {
-        int* curr_line = G.framebuffer + i * WINDOW_WIDTH;
-        memcpy(curr_line, prev_line, WINDOW_WIDTH * sizeof(int));
-        for (int k = 0; k < 3; k++)
-        {
-            int xoffset = sin((i + aTicks * 0.01 * k) * 0.03)
-                              * sin((i + aTicks * 0.005 + k * 100) * 0.04)
-                              * sin((i + aTicks * 0.0025) * 0.05) * (WINDOW_WIDTH / 3 - 32)
-                          + k * WINDOW_WIDTH / 6 + WINDOW_WIDTH / 3;
+    int xpos =
+        sin(aTicks * 0.0006) *
+        sin(aTicks * 0.00115) *
+        (WINDOW_WIDTH - 128) / 2 +
+        WINDOW_WIDTH / 2 - 32;
 
-#define ROT(a, b) ((((a) << (b)) | ((a) >> (24 - (b)))) & 0xffffff)
+    int ypos =
+        cos(aTicks * 0.0007) *
+        sin(aTicks * 0.00125) *
+        (WINDOW_HEIGHT - 128) / 2 +
+        WINDOW_HEIGHT / 2 - 32;
 
-            for (int j = 0; j < 16; j++)
-            {
-                curr_line[(j) + xoffset] = ROT(j * 15 | 0x3f0000, k * 8) | 0xff000000;
-                curr_line[(j + 16) + xoffset] = ROT((16 - j) * 15 | 0x3f0000, k * 8) | 0xff000000;
-            }
-        }
+    drawball(xpos, ypos,
+        ((int)(sin(aTicks * 0.0001 + 0 * M_PI * 2 / 3) * 127 + 128) << 16) |
+        ((int)(sin(aTicks * 0.0001 + 1 * M_PI * 2 / 3) * 127 + 128) << 8) |
+        ((int)(sin(aTicks * 0.0001 + 2 * M_PI * 2 / 3) * 127 + 128) << 0));
 
-        prev_line = curr_line;
-    }
+
 }
 
 void loop()
@@ -440,6 +434,8 @@ bool init_sdl()
 
 void destroy()
 {
+    // delete gFrameBufferPile;
+
     SDL_DestroyTexture(G.texture);
     SDL_DestroyRenderer(G.renderer);
     SDL_DestroyWindow(G.window);
@@ -460,5 +456,6 @@ int main(int argc, char** argv)
         loop();
 #endif
 
+    destroy();
     return 0;
 }
