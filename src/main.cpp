@@ -57,12 +57,79 @@ struct Vertex
 Vertex* gVtx;
 // Transformed vertices
 Vertex* gRVtx;
+
+struct Particle
+{
+    float x = 0;
+    float y = 0;
+    float xi = 0;
+    float yi = 0;
+    int live = 0;
+    int gen = 0;
+};
+
+#define MAX_PARTICLES 8192
+Particle gParticle[MAX_PARTICLES];
+unsigned int gNextParticle = 0;
+
+void spawn(float x, float y, float xi, float yi, int live, int gen)
+{
+    int n = gNextParticle % MAX_PARTICLES;
+    gNextParticle++;
+    gParticle[n].x = x;
+    gParticle[n].y = y;
+    gParticle[n].xi = xi;
+    gParticle[n].yi = yi;
+    gParticle[n].live = live;
+    gParticle[n].gen = gen;
+}
+
 int* gBall;
 int* gFrameBufferPile;
 int gFrame = 0;
 constexpr int WINDOW_WIDTH = 1920 / 2;
 constexpr int WINDOW_HEIGHT = 1080 / 2;
+void physics_tick(Uint64 aTicks)
+{
+    if (((aTicks / 10) % 100) == 0)
+    {
+        spawn(WINDOW_WIDTH / 2,
+              WINDOW_HEIGHT,
+              (rand() % 256 - 128) / 32.0f,
+              -6 - (rand() % 256) / 64.0f,
+              100 + rand() % 20,
+              0);
+    }
 
+    for (int i = 0; i < MAX_PARTICLES; i++)
+    {
+        if (gParticle[i].live)
+        {
+            gParticle[i].yi += 0.1f;
+            gParticle[i].x += gParticle[i].xi;
+            gParticle[i].y += gParticle[i].yi;
+            gParticle[i].live--;
+            if (!gParticle[i].live && gParticle[i].y < WINDOW_HEIGHT && gParticle[i].gen < 2)
+            {
+                float x = gParticle[i].x;
+                float y = gParticle[i].y;
+                float xi = gParticle[i].xi / 2;
+                float yi = 0;
+                int gen = gParticle[i].gen + 1;
+
+                for (int j = 0; j < 8; j++)
+                {
+                    spawn(x,
+                          y,
+                          xi + (rand() % 256 - 128) / 64.0f,
+                          yi - (float) (rand() % 512) / 100.0f,
+                          30 + rand() % 20,
+                          gen);
+                }
+            }
+        }
+    }
+}
 void putpixel(int x, int y, int color)
 {
     if (x < 0 || y < 0 || x >= WINDOW_WIDTH || y >= WINDOW_HEIGHT)
@@ -421,15 +488,25 @@ void rotate_x(double angle)
 
 void render(Uint64 aTicks)
 {
-    for (int i = 0; i < WINDOW_HEIGHT / 2; i++)
+    static Uint64 lastTick = 0;
+
+    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
+        G.framebuffer[i] = 0xff000000;
+
+    while (lastTick < aTicks)
     {
-        int ypos = (i + WINDOW_HEIGHT / 2) * WINDOW_WIDTH;
-        float z = i / (float)(WINDOW_HEIGHT / 2);
-        int wiggle = i + sin(aTicks * -0.001 + i * (2 - z) * 0.2) * 32 * z;
-        if (wiggle < 0) wiggle = 0;
-        if (wiggle > WINDOW_HEIGHT / 2) wiggle = WINDOW_HEIGHT / 2;
-        int srcpos = (WINDOW_HEIGHT / 2 - wiggle) * WINDOW_WIDTH;
-        memcpy(G.framebuffer + ypos, G.framebuffer + srcpos, WINDOW_WIDTH * sizeof(int));
+        physics_tick(lastTick);
+        lastTick += 20;
+    }
+
+    for (int i = 0; i < MAX_PARTICLES; i++)
+    {
+        if (gParticle[i].live != 0)
+        {
+            int x = (int) gParticle[i].x;
+            int y = (int) gParticle[i].y;
+            drawcircle(x, y, 4, 0xff777777);
+        }
     }
 }
 
