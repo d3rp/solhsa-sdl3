@@ -66,22 +66,19 @@ struct Particle
     float yi = 0;
     int live = 0;
     int gen = 0;
+    int type = 0;
+    int color = 0;
 };
 
 #define MAX_PARTICLES 8192
 Particle gParticle[MAX_PARTICLES];
 unsigned int gNextParticle = 0;
 
-void spawn(float x, float y, float xi, float yi, int live, int gen)
+void spawn(Particle q)
 {
     int n = gNextParticle % MAX_PARTICLES;
     gNextParticle++;
-    gParticle[n].x = x;
-    gParticle[n].y = y;
-    gParticle[n].xi = xi;
-    gParticle[n].yi = yi;
-    gParticle[n].live = live;
-    gParticle[n].gen = gen;
+    gParticle[n] = q;
 }
 
 int* gBall;
@@ -91,41 +88,64 @@ constexpr int WINDOW_WIDTH = 1920 / 2;
 constexpr int WINDOW_HEIGHT = 1080 / 2;
 void physics_tick(Uint64 aTicks)
 {
+
     if (((aTicks / 10) % 100) == 0)
     {
-        spawn(WINDOW_WIDTH / 2,
-              WINDOW_HEIGHT,
-              (rand() % 256 - 128) / 32.0f,
-              -6 - (rand() % 256) / 64.0f,
-              100 + rand() % 20,
-              0);
+        spawn({ WINDOW_WIDTH / 2,
+                WINDOW_HEIGHT,
+                (rand() % 256 - 128) / 32.0f,
+                -6 - (rand() % 256) / 64.0f,
+                100 + rand() % 20,
+                0,
+                0,
+                0 });
     }
 
     for (int i = 0; i < MAX_PARTICLES; i++)
     {
         if (gParticle[i].live)
         {
-            gParticle[i].yi += 0.1f;
-            gParticle[i].x += gParticle[i].xi;
-            gParticle[i].y += gParticle[i].yi;
-            gParticle[i].live--;
-            if (!gParticle[i].live && gParticle[i].y < WINDOW_HEIGHT && gParticle[i].gen < 2)
+            if (gParticle[i].type == 0)
             {
-                float x = gParticle[i].x;
-                float y = gParticle[i].y;
-                float xi = gParticle[i].xi / 2;
-                float yi = 0;
-                int gen = gParticle[i].gen + 1;
-
-                for (int j = 0; j < 8; j++)
+                spawn({ gParticle[i].x,
+                        gParticle[i].y,
+                        (rand() % 100) / 200.0f - 0.25f,
+                        (rand() % 100) / 200.0f,
+                        50 + rand() % 20,
+                        0,
+                        1,
+                        0 });
+                gParticle[i].yi += 0.1f;
+                gParticle[i].x += gParticle[i].xi;
+                gParticle[i].y += gParticle[i].yi;
+                gParticle[i].live--;
+                if (!gParticle[i].live && gParticle[i].y < WINDOW_HEIGHT && gParticle[i].gen < 2)
                 {
-                    spawn(x,
-                          y,
-                          xi + (rand() % 256 - 128) / 64.0f,
-                          yi - (float) (rand() % 512) / 100.0f,
-                          30 + rand() % 20,
-                          gen);
+                    float x = gParticle[i].x;
+                    float y = gParticle[i].y;
+                    float xi = gParticle[i].xi / 2;
+                    float yi = 0;
+                    int gen = gParticle[i].gen + 1;
+
+                    for (int j = 0; j < 8; j++)
+                    {
+                        spawn({ x,
+                                y,
+                                xi + (rand() % 256 - 128) / 64.0f,
+                                yi - (float) (rand() % 512) / 100.0f,
+                                30 + rand() % 20,
+                                gen,
+                                0,
+                                0 });
+                    }
                 }
+            }
+
+            if (gParticle[i].type == 1)
+            {
+                gParticle[i].y += gParticle[i].yi;
+                gParticle[i].x += gParticle[i].xi;
+                gParticle[i].live--;
             }
         }
     }
@@ -175,41 +195,6 @@ void snowfall()
                 G.framebuffer[ypos + i] = 0xff000000;
             }
         }
-    }
-}
-// clang-format off
-const unsigned char sprite[] =
-    {
-        0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,
-        0,0,0,1,0,1,0,1,0,1,0,1,0,0,0,0,
-        0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,0,
-        0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,0,
-        0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,
-        0,1,0,0,0,0,1,1,1,1,0,0,0,1,0,0,
-        1,0,0,0,0,1,1,1,1,1,1,0,0,0,1,0,
-        0,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,
-        1,0,0,0,0,1,1,1,1,1,1,0,0,0,1,0,
-        0,1,0,0,0,1,1,1,1,1,1,0,0,0,0,1,
-        0,0,1,0,0,0,1,1,1,1,0,0,0,0,1,0,
-        0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,
-        0,0,1,0,1,0,0,0,0,0,0,1,0,1,0,0,
-        0,0,0,1,0,1,0,0,0,1,0,0,1,1,0,0,
-        0,0,0,0,1,0,1,0,1,0,1,0,1,0,0,0,
-        0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0
-    };
-// clang-format on
-
-void drawsprite(int x, int y, unsigned int color)
-{
-    int i, j, c, yofs;
-    yofs = y * WINDOW_WIDTH + x;
-    for (i = 0, c = 0; i < 16; i++)
-    {
-        for (j = 0; j < 16; j++, c++)
-            if (sprite[c])
-                G.framebuffer[yofs + j] = color;
-
-        yofs += WINDOW_WIDTH;
     }
 }
 
@@ -332,6 +317,38 @@ void drawcircle(int x, int y, int r, int c)
             // and no pixels get drawn!
             for (int j = 0; j < len; j++)
                 G.framebuffer[ofs + j] = c;
+        }
+    }
+}
+
+void drawcircle_add(int x, int y, int r, int c)
+{
+    for (int i = 0; i < 2 * r; i++)
+    {
+        // vertical clipping: (top and bottom)
+        if ((y - r + i) >= 0 && (y - r + i) < WINDOW_HEIGHT)
+        {
+            int len = (int) (sqrt(r * r - (r - i) * (r - i)) * 2);
+            int xofs = x - len / 2;
+
+            // left border
+            if (xofs < 0)
+            {
+                len += xofs;
+                xofs = 0;
+            }
+
+            // right border
+            if (xofs + len >= WINDOW_WIDTH)
+            {
+                len -= (xofs + len) - WINDOW_WIDTH;
+            }
+            int ofs = (y - r + i) * WINDOW_WIDTH + xofs;
+
+            // note that len may be 0 at this point,
+            // and no pixels get drawn!
+            for (int j = 0; j < len; j++)
+                G.framebuffer[ofs + j] = blend_add(G.framebuffer[ofs + j], c);
         }
     }
 }
@@ -486,6 +503,22 @@ void rotate_x(double angle)
     }
 }
 
+int gen_color(int color, int live, float scale)
+{
+    float a = color / 1024.0f;
+    int r = sin(a) * 127 + 128;
+    int g = sin(a + 2 * M_PI / 3) * 127 + 128;
+    int b = sin(a + 4 * M_PI / 3) * 127 + 128;
+    r = (r + 128) / 2;
+    g = (g + 128) / 2;
+    b = (b + 128) / 2;
+    scale *= live / 100.0f;
+    r *= scale;
+    g *= scale;
+    b *= scale;
+    return (b << 16) | (g << 8) | (r << 0) | 0xff000000;
+}
+
 void render(Uint64 aTicks)
 {
     static Uint64 lastTick = 0;
@@ -505,7 +538,9 @@ void render(Uint64 aTicks)
         {
             int x = (int) gParticle[i].x;
             int y = (int) gParticle[i].y;
-            drawcircle(x, y, 4, 0xff777777);
+
+            int c = gen_color(gParticle[i].color, gParticle[i].live, 1);
+            drawcircle_add(x, y, 4, c);
         }
     }
 }
