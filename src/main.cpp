@@ -70,7 +70,7 @@ struct Particle
     int color = 0;
 };
 
-#define MAX_PARTICLES 8192
+#define MAX_PARTICLES 16384
 Particle gParticle[MAX_PARTICLES];
 unsigned int gNextParticle = 0;
 
@@ -89,7 +89,7 @@ constexpr int WINDOW_HEIGHT = 1080 / 2;
 void physics_tick(Uint64 aTicks)
 {
 
-    if (((aTicks / 10) % 100) == 0)
+    if (((aTicks / 8) % 80) == 0)
     {
         spawn({ WINDOW_WIDTH / 2,
                 WINDOW_HEIGHT,
@@ -127,13 +127,14 @@ void physics_tick(Uint64 aTicks)
                     float yi = 0;
                     int gen = gParticle[i].gen + 1;
 
-                    for (int j = 0; j < 8; j++)
+                    for (int j = 0; j < 12; j++)
                     {
+                        spawn({ x, y, 0, 0, 10, 0, 2, 0 });
                         spawn({ x,
                                 y,
                                 xi + (rand() % 256 - 128) / 64.0f,
                                 yi - (float) (rand() % 512) / 100.0f,
-                                30 + rand() % 20,
+                                60 + rand() % 40,
                                 gen,
                                 0,
                                 0 });
@@ -145,6 +146,11 @@ void physics_tick(Uint64 aTicks)
             {
                 gParticle[i].y += gParticle[i].yi;
                 gParticle[i].x += gParticle[i].xi;
+                gParticle[i].live--;
+            }
+
+            if (gParticle[i].type == 2)
+            {
                 gParticle[i].live--;
             }
         }
@@ -352,6 +358,37 @@ void drawcircle_add(int x, int y, int r, int c)
         }
     }
 }
+void drawcircle_mul(int x, int y, int r, int c)
+{
+    for (int i = 0; i < 2 * r; i++)
+    {
+        // vertical clipping: (top and bottom)
+        if ((y - r + i) >= 0 && (y - r + i) < WINDOW_HEIGHT)
+        {
+            int len = (int) (sqrt(r * r - (r - i) * (r - i)) * 2);
+            int xofs = x - len / 2;
+
+            // left border
+            if (xofs < 0)
+            {
+                len += xofs;
+                xofs = 0;
+            }
+
+            // right border
+            if (xofs + len >= WINDOW_WIDTH)
+            {
+                len -= (xofs + len) - WINDOW_WIDTH;
+            }
+            int ofs = (y - r + i) * WINDOW_WIDTH + xofs;
+
+            // note that len may be 0 at this point,
+            // and no pixels get drawn!
+            for (int j = 0; j < len; j++)
+                G.framebuffer[ofs + j] = blend_mul(G.framebuffer[ofs + j], c);
+        }
+    }
+}
 void init_gfx()
 {
     for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
@@ -523,8 +560,15 @@ void render(Uint64 aTicks)
 {
     static Uint64 lastTick = 0;
 
-    for (int i = 0; i < WINDOW_WIDTH * WINDOW_HEIGHT; i++)
-        G.framebuffer[i] = 0xff000000;
+    for (int i = 0; i < WINDOW_HEIGHT; i++)
+    {
+        int c = (64 * i) / WINDOW_HEIGHT;
+        c = 0x010000 * c | 0xff000000;
+        for (int j = 0; j < WINDOW_WIDTH; j++)
+        {
+            G.framebuffer[i * WINDOW_WIDTH + j] = c;
+        }
+    }
 
     while (lastTick < aTicks)
     {
@@ -536,11 +580,26 @@ void render(Uint64 aTicks)
     {
         if (gParticle[i].live != 0)
         {
-            int x = (int) gParticle[i].x;
-            int y = (int) gParticle[i].y;
+            if (gParticle[i].type == 2)
+            {
+                int x = (int) gParticle[i].x;
+                int y = (int) gParticle[i].y;
+                int c = gParticle[i].live * 4;
+                c *= 0x010101;
+                c |= 0xff000000;
+                drawcircle_mul(x, y, 15, c);
+                drawcircle(x, y, 12, c);
+            }
+            else
+            {
+                int x = (int) gParticle[i].x;
+                int y = (int) gParticle[i].y;
 
-            int c = gen_color(gParticle[i].color, gParticle[i].live, 1);
-            drawcircle_add(x, y, 4, c);
+                int c = gen_color(gParticle[i].color, gParticle[i].live, 0.1);
+                drawcircle_add(x, y, 3, c);
+                c = gen_color(gParticle[i].color, gParticle[i].live, 1);
+                drawcircle_add(x, y, 1, c);
+            }
         }
     }
 }
