@@ -1,6 +1,6 @@
 # Sol's Graphics Tutorial
  
-https://solhsa.com/gp2/
+http://iki.fi/sol/gp2/
 
 For fun. 
 
